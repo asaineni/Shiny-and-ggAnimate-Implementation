@@ -1,0 +1,487 @@
+---
+title: "Assignment Shiny"
+author: "Nihar Garlapati & Akhila Saineni"
+date: "8/7/2020"
+output:
+  html_document:
+    code_folding: hide
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r cars}
+
+
+library(RColorBrewer)
+library(ggplot2)
+library(shiny)
+library(dplyr)
+library(plotly)
+library(shinythemes)
+library(shinyWidgets)
+library(anytime)
+library(gganimate)
+library(DT)
+library(expss)
+
+
+
+
+data<-read.csv("COVID_data_2020-08-05_c.csv")
+
+
+
+
+data$date=as.Date(data$date)
+
+
+
+
+data_global = data %>%
+ group_by(date) %>%  
+  summarise(cases=sum(cases),new_cases=sum(new_cases), deaths=sum(deaths), new_death=sum(deaths)) %>% data.frame()
+
+data_global=data_global %>% mutate(country="All") %>% data.frame()
+
+
+
+data_continent = data %>%
+  group_by(date,continent) %>%  
+  summarise(cases=sum(cases),new_cases=sum(new_cases), deaths=sum(deaths), new_death=sum(deaths)) %>% data.frame()
+
+
+
+
+
+cls = rep(c(brewer.pal(8,"Dark2"), brewer.pal(10, "Paired"), brewer.pal(12, "Set3"), brewer.pal(8,"Set2"), brewer.pal(9, "Set1"), brewer.pal(8, "Accent"),  brewer.pal(9, "Pastel1"),  brewer.pal(8, "Pastel2")),4)
+cls_names = c(as.character(unique(data$country)),as.character(unique(data_continent$continent)),"All")
+country_cols = cls[1:length(cls_names)]
+names(country_cols) = cls_names
+
+
+
+
+
+
+data = apply_labels(data,
+                    country = "Country",
+                    date="Date",
+                    new_cases="Case Count",
+                    new_deaths="Death Count")
+
+
+
+
+
+
+
+country_cases_plot = function(data, plot_start_date) {
+  
+    g = ggplot(data, aes(x = date, y = new_outcome, fill = country, group = 1,
+                             text = paste0(date, "\n", country, ": ",deaths))) + 
+      xlab("Date")
+    
+  
+
+  
+  g1 = g +
+    geom_bar(position="stack", stat="identity") + 
+    ylab("new") + theme_bw() + 
+    scale_fill_manual(values=country_cols) +
+    theme(legend.title = element_blank(), legend.position = "", plot.title = element_text(size=10))
+  ggplotly(g1, tooltip = c("text")) %>% layout(legend = list(font = list(size=11)))
+}
+
+
+
+
+country_cases_cumulative = function(data, plot_start_date) {
+ 
+    g = ggplot(data, aes(x = date, y = outcome, colour = country, group = 1,
+                             text = paste0(date, "\n", country, ": ",cases))) +
+      xlab("Date")
+  
+  
+
+  g1 = g + geom_line(alpha=0.8) + geom_point(size = 1, alpha = 0.8) +
+    ylab("cumulative") + theme_bw() + 
+    scale_colour_manual(values=country_cols) +
+    theme(legend.title = element_blank(), legend.position = "", plot.title = element_text(size=10))
+  ggplotly(g1, tooltip = c("text")) %>% layout(legend = list(font = list(size=11)))
+}
+
+
+
+
+
+##################GG Animate####################
+
+data_usa<-read.csv("us-states.csv")
+data_usa$date2=anydate(data_usa$date2)
+
+
+data_usa<-subset(data_usa, 
+               state=="California" 
+               |  state=="Texas" 
+               |  state=="Florida" 
+               |   state=="New York" 
+               |   state=="Pennsylvania" 
+               |   state=="Illinois" 
+               |   state=="Ohio" 
+               |   state=="Georgia" 
+               |   state=="North Carolina" 
+               |   state=="Michigan" 
+)
+
+
+
+
+data_usa$deathrate=data_usa$deaths/data_usa$cases
+statepick<-unique(data_usa$state)
+
+
+####Shiny#########
+
+ui <- bootstrapPage(
+  tags$head("Project by Niharr Garlapati & Akhila Saineni"),
+  
+  
+  navbarPage(theme = shinytheme("flatly"), collapsible = TRUE,
+             "COVID-19 tracker", id="nav",
+             
+             tabPanel("Summary",
+                      
+              tags$h4("ANLY 512-50- A-2020/Summer - Data Visualization Assignment"),
+              
+              tags$h5("The goal of the following shiny app is to be able to compare COVID 19 Case counts around the world and also provide the users with the ability to look at animations that visualize the change in case counts and death rate in USA over the months in 2020. 
+              In the first tab Check counts, We will view and compare various case/deaths counts around the world, In the second tab Animations(USA), we will focus on the USA to animate the COVID 19 Spread and the death rate. A summarized table of the datasets are available below"),
+
+              sidebarLayout(
+                sidebarPanel(
+                  pickerInput("countries0", "Country/Region:",   
+                              choices = unique(data$country), 
+                              options = list(`actions-box` = TRUE, `none-selected-text` = "Please make a selection!"),
+                              selected = 'USA',
+                              multiple = TRUE),
+                  
+                  sliderInput("daterange0",
+                              "Date Range: ",
+                              min = min(as.Date(data$date)),
+                              max = max(as.Date(data$date)),
+                              value=as.Date(data$date))),
+                
+                mainPanel(
+                  dataTableOutput("dis")) ),
+              tags$h6("Disclaimer: The following case counts and deaths have been sourced from John hopkins University dataset and Newyork times dataset, they might be subject to inaccuracies", style="color:Red"),
+              
+              tags$h5("Bibiography"),
+              
+              tags$h6("SHINY - www.shiny.rstudio.com
+                      ,Exprss - www.gdemin.github.io
+                      ,gganimate - www.gganimate.com
+                      ,ggplot - www.ggplot2.tidyverse.org
+                      ,gganimate cheatsheet - www.ugoproto.github.io/ugo_r_doc/pdf/gganimate.pdf
+                      ,SHINY cheatsheet - www.shiny.rstudio.com/images/shiny-cheatsheet.pdf 
+                      ,JHU GIT https://github.com/CSSEGISandData/COVID-19")
+                      
+              
+              
+              
+              
+              
+              ),
+             
+             tabPanel("Check Counts",
+                      
+                      sidebarLayout(
+                        sidebarPanel(
+                          
+                          span(tags$i(h6("The following cases are being sourced from JHU")), style="color:#045a8d"),
+                          pickerInput("levels", "Level:",   
+                                      choices = c("All countries", "Continent", "Country"), 
+                                      selected = c("Country"),
+                                      multiple = FALSE),
+                          
+                          pickerInput("countries", "Country/Region:",   
+                                      choices = unique(data$country), 
+                                      options = list(`actions-box` = TRUE, `none-selected-text` = "Please make a selection!"),
+                                      selected = 'USA',
+                                      multiple = TRUE), 
+                          
+                          pickerInput("deaths_cases", "Outcome:",   
+                                      choices = c("Deaths", "Cases"), 
+                                      selected = c("Cases"),
+                                      multiple = FALSE),
+                        
+                          
+                             sliderInput("daterange",
+                                     "Date Range: ",
+                                         min = min(as.Date(data$date)),
+                                         max = max(as.Date(data$date)),
+                                         value=as.Date(data$date))
+                            ,
+                          
+                          "Please make the above selections to plot the data."
+                        ),
+                        
+                      
+                        
+                        
+                        mainPanel(
+                          tabsetPanel(
+                            tabPanel("Cumulative", plotlyOutput("country_plot_cumulative")),
+                            tabPanel("New", plotlyOutput("country_plot")))
+                          )
+                        )
+                      )
+             ,
+             
+             
+             
+             tabPanel("Animations(USA)"
+                      
+                      ,
+                      
+                      sidebarLayout(
+                        sidebarPanel(
+                          
+                          span(tags$i(h4("Please wait while the visuals are rendering......")), style="color:#045a8d"),
+                          span(tags$i(h6("Select Multiple states for comparision")), style="color:#045a8d"),
+                          pickerInput('state', 'State?', choices = statepick, multiple = TRUE, selected="California"),
+                          span(tags$i(h4("You can see the death rate has been high for almost all of the top 10 states in May, However the deathrate has been coming down ever since, It is also possible that the number of tests have increased helping to detect more positive cases")))
+                        ),
+                        
+                        
+                        
+                        
+                        mainPanel(
+                          tabsetPanel(
+                            tabPanel("New", imageOutput("Publisher_d")),
+                            tabPanel("Death Rate" , imageOutput('Publisher2')
+                                     )
+                            
+                            
+                            )
+                        )
+                      )
+             )
+                      
+                      
+
+                      
+                      
+          
+                      
+)
+)
+
+
+
+  
+  
+  
+  
+  server <- function(input, output, session) {
+    
+
+    observeEvent(input$levels, {
+      if (input$levels=="All countries") {
+        updatePickerInput(session = session, inputId = "countries", 
+                          choices = "All", selected = "All")
+      }
+      
+      if (input$levels=="Continent") {
+        updatePickerInput(session = session, inputId = "countries", 
+                          choices = unique(data_continent$continent), 
+                          selected = unique(data_continent$continent))
+      }
+      
+      if (input$levels=="Country") {
+        updatePickerInput(session = session, inputId = "countries", 
+                          choices = unique(data$country), 
+                          selected ='USA')
+      }
+      
+      
+    }, ignoreInit = TRUE)
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    smrt<-reactive({
+      
+      data %>% filter(country %in% input$countries0 & date >=input$daterange0[1] & date <= input$daterange0[2])
+    
+    })
+    
+    
+    output$dis<-renderDataTable(
+    
+      
+      smrt() %>%
+        group_by(country) %>%
+        summarize(Cases = sum(new_cases), Deaths= sum(new_deaths)) %>%
+        tab_cells(Cases, Deaths) %>% 
+        tab_cols(country) %>%
+        tab_stat_fun("Sum"=sum, 
+                     method=list) %>%
+        tab_pivot() %>%
+        tab_transpose()
+      
+      
+    )
+
+    
+    
+    data %>%
+      group_by(country) %>%
+      summarize(total_cases = sum(new_cases), total_deaths = sum(new_deaths)) %>%
+      tab_cells(total_cases, total_deaths) %>% 
+      tab_cols(country) %>%
+      tab_stat_fun("Sum"=sum, 
+                   method=list) %>%
+      tab_pivot() %>%
+      tab_transpose()
+    
+    
+    country_reactive_db = reactive({
+      
+         if (input$levels=="All countries") { 
+            db = data_global
+            db$region = db$country
+          }
+          if (input$levels=="Continent") { 
+            db = data_continent 
+            db$country = db$continent
+          }
+      if (input$levels=="Country") { 
+        db = data
+        db$region = db$country
+      
+      }
+      
+      
+      if (input$deaths_cases=="Cases") { 
+        db$outcome = db$cases
+        db$new_outcome = db$new_cases
+      }
+      
+      if (input$deaths_cases=="Deaths") { 
+        db$outcome = db$deaths 
+        db$new_outcome = db$new_deaths 
+      }
+      
+      db %>% filter(country %in% input$countries & date >=input$daterange[1] & date <= input$daterange[2] )
+      
+     
+    })
+    
+    
+    
+    
+    
+    
+
+    
+    
+    # country-specific plots
+    output$country_plot <- renderPlotly({
+      country_cases_plot(country_reactive_db())
+    })
+    
+    # country-specific plots
+    output$country_plot_cumulative <- renderPlotly({
+      country_cases_cumulative(country_reactive_db())
+    })
+    
+    
+    
+    
+    dataset<-reactive({
+      
+      data_usa %>% filter(state %in% input$state )
+      
+      
+      })  
+    
+    
+    
+    output$Publisher_d <- renderImage({
+      
+      outfile1_d <- tempfile(fileext='.gif')
+      
+      
+      anim1_d =ggplot(dataset(),aes(x=reorder(state,cases), y=cases, fill=state))+
+        geom_bar(stat = "summary")   + 
+        coord_flip() +
+        theme_classic() + 
+       # geom_text(aes(label = state), color = 'black', vjust=0, size=3.0) +
+        transition_time(date2)  +
+        ggtitle('{frame_time}') +
+        xlab("USA State") +
+        ylab("Cases")
+      
+      
+      anim_save("outfile1_d.gif", animate(anim1_d, 50, fps = 2))
+      list(src = "outfile1_d.gif", contentType = 'image/gif', width = 600,
+           height = 500)
+      
+    })
+    
+    
+    output$Publisher2 <- renderImage({
+      
+      outfile2 <- tempfile(fileext='.gif')
+      
+      anim2 = ggplot(dataset(), aes(date2, deathrate, group = state, color = state)) + 
+        geom_line() + 
+        #geom_segment(aes(xend = 31, yend = 31), linetype = 2, colour = 'grey') + 
+        geom_point(size = 2) + 
+        #geom_text(aes(x = 31.1, label = state), hjust = 0) + 
+        geom_text(aes(label = state), color = 'black', vjust=-1.5, size=5) + 
+        transition_reveal(date2) + 
+        coord_cartesian(clip = 'off') + 
+        labs(title = 'Death Rate by State', y = 'DeathRate') + 
+        theme_classic() + 
+        theme(plot.margin = margin(5.5, 40, 5.5, 5.5)) +
+        ease_aes('sine-in-out') +
+        #  shadow_wake(0.05, size = 2, alpha = TRUE, wrap = FALSE, #exclude_layer = c(2, 3),
+        #              falloff = 'sine-in', exclude_phase = 'enter')  +
+        enter_fade() +
+        exit_shrink() +
+        xlab('Date') +
+        ylab('Death Rate')
+      
+      anim_save("outfile2.gif", animate(anim2, 50, fps = 5))
+      list(src = "outfile2.gif", contentType = 'image/gif', width = 600,
+           height = 500)
+      
+      
+    })
+ 
+    
+  }
+  
+  
+    shinyApp(ui, server)
+  
+ # shinyApp(ui, server)
+  
+#  deployApp()
+
+```
+
+
